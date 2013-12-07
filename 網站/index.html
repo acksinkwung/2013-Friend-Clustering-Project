@@ -1,0 +1,719 @@
+<!doctype html>
+<html>
+	<head>
+		<title>朋友分群系統</title>
+		<meta charset="utf-8" />
+		<!-- Bootstrap -->
+		<link href="css/bootstrap.min.css" rel="stylesheet" media="screen">
+		<link href="css/sticky.css" rel="stylesheet"/>
+		 <link href="css/select2.css" rel="stylesheet"/>
+		<script src="js/jquery-1.8.3.min.js"></script>
+		<script src="js/all.js"></script>
+		<!-- Bootstrap -->
+		<script src="js/bootstrap.min.js"></script>
+		<script src="js/algorithm.js"></script>
+		<script src="js/function.js"></script>
+   		<script src="js/select2.min.js"></script>
+		<script src="js/canvasjs.min.js"></script>
+		<script src="js/bootbox.min.js"></script>
+		<style>
+			body {
+				padding-top: 30px;
+				font-family: '微軟正黑體';
+			}
+			.select2-container .select2-choice {
+    			height: 42px;
+    			line-height: 42px;
+    		}
+			.item {
+			  width: 220px;
+			  margin: 10px;
+			  float: left;
+			}
+    		a { display: inline-block; }
+		</style>
+
+	</head>
+	<body>
+		<span id="fb-root"></span>
+		
+		<div class="navbar navbar-inverse navbar-fixed-top">
+			<div class="navbar-inner">
+				<div class="container">
+					<a class="brand" href="#">朋友分群系統</a>
+					<a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse"> <span class="icon-bar"></span> <span class="icon-bar"></span> <span class="icon-bar"></span> </a>
+					<div class="nav-collapse collapse">
+						
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div id="wrap">
+		<div class="container">
+			<div id="read-user-data">
+			<div class="hero-unit">
+			      <h1>讀取與您相關朋友的資訊中…</h1>
+			      <h1><small>請同意本系統取得「<a href="https://www.facebook.com/help/151469804922694/" target="_blank">共同朋友</a>」和「<a href="https://www.facebook.com/help/135312293276793/" target="_blank">朋友名單</a>」資訊。</small></h1>
+			      <br>
+				  <div id="progress-bar-div" class="progress progress-striped progress-info ">	
+			  		<div id="progress-bar" class="bar" style="width: 0%;">
+			  		</div>
+				  </div>
+			</div>
+			</div>
+			<div id="config-user-condition">
+				<div class="hero-unit">
+				<h1>哪些朋友不能屬於相同群組呢?</h1>
+				<h1><small>請您先設定哪兩位朋友不能屬於相同群組的條件，至少一組設定最多三組設定。</small></h1>
+				<br>
+				<h3>
+				<p></p>
+				<input id="search-friend1-1" style="width:30%;"></input> 和 <input id="search-friend1-2" style="width:30%;"></input> 
+				將不能屬於相同群組。
+				<p></p>
+				<input id="search-friend2-1" style="width:30%;"></input> 和 <input id="search-friend2-2" style="width:30%;"></input> 
+				將不能屬於相同群組。
+				<p></p>
+				<input id="search-friend3-1" style="width:30%;"></input> 和 <input id="search-friend3-2" style="width:30%;"></input> 
+				將不能屬於相同群組。
+				</h3>
+				<br><br>
+				<button class="btn btn-large btn-block btn-inverse" type="button" onclick="javascript:friend_clustering();" >開始將 Facebook 中的朋友分成群組
+				</button>
+				</div>
+			</div>
+		    <div class="container">
+			    <div id="check-group"></div>
+		    </div>	
+			<div id="push"></div>
+		</div>
+		</div>
+
+	    <div id="footer">
+	      <div class="container">
+	        
+	        <p class="muted credit">Copyrights © 2013</p>
+	      </div>
+	    </div>
+		<script>
+			function friend_clustering() {
+				condition_number=0;
+				for (var c=0; c<3; c++) {
+					if (friend_disjoint_condition[c][0]!=-1 && friend_disjoint_condition[c][1]!=-1) {
+						condition_number++;
+						if (G[friend_disjoint_condition[c][0]]==G[friend_disjoint_condition[c][1]]) {
+							condition_effect = condition_effect + "true,";	
+						} else {
+							condition_effect = condition_effect + "false,";	
+						}
+					}
+				}
+				if (condition_number>0) {
+					$('#config-user-condition').hide();
+					clustering();
+				} else {
+					bootbox.alert("<div class=\"page-header\"><h1>訊息</h1></div>請設定兩位朋友不能屬於相同群組的條件，至少一組設定最多三組設定。");
+				}
+			}
+            function format(state) {
+			    if (!state.id) return state.text;
+			    return "<img class='img-circle' src='http://graph.facebook.com/" + state.id+ "/picture' style='height:42px;'> " + state.text;
+			}
+
+		    var test;
+			// initialize the library with the API key
+			FB.init({
+				appId : '171301166213238'
+			});
+
+			// fetch the status on load
+			FB.getLoginStatus(handleSessionResponseLogin);
+
+			$('.navbar .navbar-inner .container #login').bind('click', function() {
+				FB.login(handleSessionResponseLogin, {
+					scope : 'user_photos,friends_photos,read_friendlists,manage_friendlists,read_stream,user_likes,friends_likes '
+				});
+			});
+
+			$('.navbar .navbar-inner .container #logout').bind('click', function() {
+				FB.logout(handleSessionResponseLogout);
+			});
+			
+			function format(state) {
+			    if (!state.id) return state.text;
+			    return "<img class='img-circle' src='http://graph.facebook.com/" + state.id+ "/picture' style='height:42px;'> " + state.text;
+			}		
+
+			var datapointArray = new Array();
+			var friend_disjoint_condition = new Array();
+			var key_fanpage_number = new Array();
+			var condition_number = 0;
+			var FPPIC = new Array();
+			var FPNAME = new Array();
+			var FPDATA = new Array();
+			var L = new Array();
+			var OL = new Array();
+			var NG = new Array();
+			
+			function handleSessionResponseLogin() {
+				FB.api('/me', function(response) {
+					user_id = response.id;
+					getFriends(user_id);
+					FriendNumber = FriendID.length;
+					for (var n=0; n<FriendNumber; n++) {
+						getMutualFriends(user_id,FriendID[n]);
+					}
+					$('#loading-data').show();
+					setInterval(function() {
+			    		updateProgressStatus();
+					}, 100);	
+					var datapointArray = new Array();
+					
+				});
+				//loadDataFromStorage();
+			};
+
+			function showRelatedFriend(n) {
+				var friendsInfo = "";
+				for (var i=0; i<L[n].length; i++) {
+					friendsInfo+="<a href='http://www.faceboo.com/"+FriendID[L[n][i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[L[n][i]]+"/picture'></a> ";
+				}
+				bootbox.modal(friendsInfo, '群組中朋友資訊');
+			}
+
+			var current_list_number = 0;
+			var GN = new Array();
+			var FEMBGN = new Array();
+			function addFriend(i,number,original_number) {
+				GN[number].push(i);
+				if (original_number!=-1) {
+					GN[original_number].splice(GN[original_number].indexOf(i),1);
+					G[i] = AL[number];
+				} else {
+					NG.splice(NG.indexOf(i),1)
+				}
+			}
+
+			function delFriend(i,number) {
+				GN[number].splice(GN[number].indexOf(i),1);
+				if (NG.indexOf(i)==-1) {
+					NG.push(i);
+				}
+			}
+
+			function showRelatedFriendDetail(n,number) {
+				current_list_number = number;
+				var friendsInfo = "<div class=\"page-header\"><h2>群組中朋友資訊</h2></div>";
+				friendsInfo+="<div class=\"row-fluid\"><div class=\"span6\"><h1><small>已加入</small></h1>";
+				friendsInfo+="<br>";
+				for (var i=0; i<GN[current_list_number-1].length; i++) {
+					friendsInfo+="<input onclick=\"javascript:delFriend("+GN[current_list_number-1][i]+","+(current_list_number-1)+");\" checked type=\"checkbox\"> <a href='http://www.faceboo.com/"+FriendID[GN[current_list_number-1][i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[GN[current_list_number-1][i]]+"/picture'></a> "+FriendName[GN[current_list_number-1][i]]+" ";
+					friendsInfo+="<br>";
+				}
+				friendsInfo+="</div>";
+				friendsInfo+="<div class=\"span6\"><h1><small>未加入</small></h1>";
+				for (var i=0; i<NG.length; i++) {
+					friendsInfo+="<br>";	
+					friendsInfo+="(必須設定) <input onclick=\"javascript:addFriend("+NG[i]+","+(current_list_number-1)+",-1);\" type=\"checkbox\"> <a href='http://www.faceboo.com/"+FriendID[NG[i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[NG[i]]+"/picture'></a> "+FriendName[NG[i]];
+					friendsInfo+="<br>";	
+					
+				}
+				for (var k=0; k<GN.length; k++) {
+					if (k!=(current_list_number-1)) {
+						if (FLA[k]==0 ) {
+							friendsInfo+="<br>";
+							for (var i=0; i<GN[k].length; i++) {
+								friendsInfo+="<input onclick=\"javascript:addFriend("+GN[k][i]+","+(current_list_number-1)+","+k+");\" type=\"checkbox\"> <a href='http://www.faceboo.com/"+FriendID[GN[k][i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[GN[k][i]]+"/picture'></a> "+FriendName[GN[k][i]]+" ";
+								friendsInfo+="<br>";	
+							}
+						}
+					}
+				}
+				for (var k=0; k<GN.length; k++) {
+					if (k!=(current_list_number-1)) {
+						if (FLA[k]==1 ) {
+							friendsInfo+="<br>";
+							for (var i=0; i<GN[k].length; i++) {
+								friendsInfo+="<input onclick=\"javascript:addFriend("+GN[k][i]+","+(current_list_number-1)+","+k+");\" type=\"checkbox\"> <a href='http://www.faceboo.com/"+FriendID[GN[k][i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[GN[k][i]]+"/picture'></a> "+FriendName[GN[k][i]]+" ";
+								friendsInfo+="<br>";	
+							}
+						}
+					}
+				}
+				friendsInfo+="</div></div>";
+				bootbox.confirm(friendsInfo,function(result){
+					if (result) {
+						FLA[current_list_number-1] = 1;
+						$('#group_'+current_list_number).remove();
+						$('#adjusted_group').append("<div id='group_"+current_list_number+"'><div>");
+					    $('#group_'+current_list_number).html("<h1><small>群組 "+current_list_number+" (已調整)</small></h1>");
+					    for (var i=Math.floor(GN[current_list_number-1].length/2)-2; i<Math.floor(GN[current_list_number-1].length/2)+3; i++) {
+							$('#group_'+current_list_number).append("<a rel=\"tooltip\" data-toggle=\"tooltip\" title data-original-title=\""+FriendName[GN[current_list_number-1][i]]+"\" rel=\"tooltip\" href='http://www.faceboo.com/"+FriendID[GN[current_list_number-1][i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[GN[current_list_number-1][i]]+"/picture'></a>");
+							    	
+						}
+						$('#group_'+current_list_number).append("等 <button class=\"btn\" onclick=\"javascript:showRelatedFriendDetail(" + AL[current_list_number-1] + "," + current_list_number + ");\">" + GN[current_list_number-1].length + "</button> 位朋友，請您針對群組 " + number + " 進行 <button class=\"btn\" onclick=\"javascript:showRelatedFriendDetail(" + AL[current_list_number-1] + "," + current_list_number + ");\">調整</button>，接著您可以選擇在 Facebook 中 <button class=\"btn\" onclick=\"javascript:friendlist_auto_create(" + current_list_number + ");\">產生</button> 朋友名單。");
+						$('[rel=tooltip]').tooltip({placement:'bottom'});
+						
+						bootbox.dialog("<h3>需要新增至 Facebook 當朋友名單嗎?</h3>", [{
+						    "label" : "需要",
+						    "class" : "btn-success",
+						    "callback": function() {
+						    	bootbox.prompt("請輸入朋友名單的名稱:", function(result) {                
+									if (!(result === null)) {     
+									    createFriendlists(result);                          
+									}	
+								});
+						    }
+						}, {
+						    "label" : "不需要",
+						    "class" : "btn-danger",
+						    "callback": function() {
+						        
+						    }
+						}]);
+					}
+				});
+			}
+			var load_friend_data_success = false;
+			var datapointArray = new Array();
+			function updateProgressStatus() {
+				read_data_progress = MutualFriendFlag/FriendNumber;
+				$('#progress-bar').css('width',read_data_progress*100 + '%');				
+				if (read_data_progress >= 1 && load_friend_data_success==false) {
+					FriendNumber = FriendName.length;
+					for (var n=0; n<FriendID.length; n++) {
+						var datapoint = new Object();
+						datapoint.id = FriendID[n];
+						datapoint.text = FriendName[n];	
+				    	datapointArray.push(datapoint);
+					}
+					start = new Date().getTime();
+					G = BGLL(FriendMatrix,FriendMatrix.length);
+					end = new Date().getTime();
+					bgll_algorithm_time = (end - start) / 1000;
+					BGLL_Q = Q(FriendMatrix,G);
+
+					var LN = new Array();
+					for (var n=0; n<G.length; n++) {
+						if( !isNaN(LN[G[n]]) ) {
+							LN[G[n]]++;
+						} else {
+							LN[G[n]]=1;
+						}
+					}
+					for (var n=0; n<LN.length; n++) {
+						if( !isNaN(LN[n]) ) {
+							if (LN[n]>0) {
+								group_bgll_number = group_bgll_number + "," + LN[n];
+							}
+						}
+					}
+					for (var i=0; i<3; i++) {
+						friend_disjoint_condition[i] = new Array();
+						for (var j=0; j<2; j++) { 
+							friend_disjoint_condition[i][j]=-1;
+							$("#search-friend"+(i+1)+"-"+(j+1)).select2({formatResult: format,
+				    			formatSelection: format,
+				    			escapeMarkup: function(m) { return m; },
+				    			placeholder: "尋找朋友...",data:JSON.parse(JSON.stringify(datapointArray))}); 
+						};
+					};
+
+					$("#search-friend1-1").on("change", function(e) { friend_disjoint_condition[0][0]=FriendID.indexOf(e.val); });
+					$("#search-friend2-1").on("change", function(e) { friend_disjoint_condition[1][0]=FriendID.indexOf(e.val); });
+					$("#search-friend3-1").on("change", function(e) { friend_disjoint_condition[2][0]=FriendID.indexOf(e.val); });
+					$("#search-friend1-2").on("change", function(e) { friend_disjoint_condition[0][1]=FriendID.indexOf(e.val); });
+					$("#search-friend2-2").on("change", function(e) { friend_disjoint_condition[1][1]=FriendID.indexOf(e.val); });
+					$("#search-friend3-2").on("change", function(e) { friend_disjoint_condition[2][1]=FriendID.indexOf(e.val); });
+					$('#how-to-help').show();
+					$('#read-user-data').hide();
+					$('#config-user-condition').show();
+					saveDataToStorage();
+					//clustering();
+					load_friend_data_success = true;
+				}
+			}
+
+			var group_bgll_number = "";
+			var group_number = 0;
+			var BGLL_Q = 0;
+			var FEMB_Q = 0;
+			var start = 0;
+			var end = 0;
+					
+			function clustering() {	
+
+					start = new Date().getTime();
+					G = FEMB(FriendMatrix,FriendMatrix.length,friend_disjoint_condition);
+					L = new Array();
+					for (var k = 0; k < G.length; k++) {
+						L[k] = new Array();
+					}
+					var number = 0;
+					var m = 0;
+					var ki = new Array();
+					for (var i = 0; i < FriendID.length; i++) {
+					    ki[i] = 0;
+					    for (var j = 0; j < FriendID.length; j++) {
+					      m += FriendMatrix[i][j];
+					      ki[i] += FriendMatrix[i][j];
+					    };  
+					};
+					LN = new Array();
+					for (var n=0; n<G.length; n++) {
+						L[G[n]].push(n);
+						if( !isNaN(LN[G[n]]) ) {
+							LN[G[n]]++;
+							if (LN[G[n]] >= 5 && AL.indexOf(G[n])==-1) {
+				    			number = number + 1;
+				    			AL[number-1] = G[n];
+				    			FLC[number-1] = 0;
+				    			FLA[number-1] = 0;
+				    			GN[number-1] = new Array();
+				    			FEMBGN[number-1] = new Array();
+							}
+						} else {
+							LN[G[n]]=1;
+						}
+
+					}
+					var max = 0;
+					var lQ = 0;
+					var maxQ = 0;
+				    for (var n=0; n<L.length; n++) {
+					    	if (L[n].length<5) {
+					    		for (var i=0; i<L[n].length; i++) {
+					    			max = 0;
+					    			maxQ = -1/2;
+					    			for (var j=0; j<AL.length; j++) {
+					    				lQ =  dQ( FriendMatrix, L[n][i] , ki[L[n][i]], m  , L[AL[j]] );
+					    				if (lQ>maxQ) {
+					    					for (var c = 0; c < 3; c++) {
+								              if (friend_disjoint_condition[c][0] != -1 && friend_disjoint_condition[c][1] != -1) {
+								                if ((L[n][i]==friend_disjoint_condition[c][0] && L[AL[j]].indexOf(friend_disjoint_condition[c][1]) == -1) || (L[n][i]==friend_disjoint_condition[c][1] && L[AL[j]].indexOf(friend_disjoint_condition[c][0]) == -1 )) {
+								                  flag = true;
+								                }
+								              }
+								            }
+								            if (flag = true) {
+					    						max = AL[j];
+					    						maxQ = lQ;
+					    					}
+					    				};
+					    			}
+					    			L[max].push(L[n][i]);
+					    		}
+					    		L[n] = new Array();
+					    	}
+					}
+					end = new Date().getTime();
+					femb_algorithm_time = (end - start) / 1000;
+
+					FEMB_Q = Q(FriendMatrix,G);
+					
+					
+					var number = 0;
+					for (var n=0; n<L.length; n++) {
+						if (L[n].length>=5) {
+							number = number + 1;
+							GN[number-1] = new Array();
+							FEMBGN[number-1] = new Array();
+							for (var i=0; i<L[n].length; i++) {
+						    	GN[number-1][i] = L[n][i];
+						    	FEMBGN[number-1][i] = L[n][i];
+						    }
+						    $('#check-group').append("<div id=\"group_"+number+"\"></div>");
+						    $('#group_'+number).append("<h1><small>群組 "+number+"</small></h1>");
+						    for (var i=Math.floor(L[n].length/2)-2; i<Math.floor(L[n].length/2)+3; i++) {
+								$('#group_'+number).append("<a rel=\"tooltip\" data-toggle=\"tooltip\" title data-original-title=\""+FriendName[L[n][i]]+"\" rel=\"tooltip\" href='http://www.faceboo.com/"+FriendID[L[n][i]]+"'  target='_blank'><img  class='img-circle' src='http://graph.facebook.com/"+FriendID[L[n][i]]+"/picture'></a>");
+							}
+							$('#group_'+number).append("等 <button class=\"btn\" onclick=\"javascript:showRelatedFriendDetail(" + n + "," + number + ");\">" + L[n].length + "</button> 位朋友，請您針對群組 " + number + " 進行 <button class=\"btn\" onclick=\"javascript:showRelatedFriendDetail(" + n + "," + number + ");\">調整</button>，接著您可以選擇在 Facebook 中 <button class=\"btn\" onclick=\"javascript:friendlist_auto_create(" + number + ");\">產生</button> 朋友名單。");
+							$('[rel=tooltip]').tooltip({placement:'bottom'});
+						}
+					}
+
+					group_number = number;
+				    
+				    $('#check-group').before("<div class=\"well well-large\">已經將 Facebook 中之朋友分成適當的群組，請您根據所產生的 " + number + " 個群組，進行適當的調整不影響 Facebook 設定，且能直接新增至 Facebook 中當成「朋友名單」使用。</div>");
+				    $('#check-group').append("<div id=\"adjusted_group\"></div>");
+				    $('#check-group').append("<br><br><p align=\"right\"><button onclick=\"javascript:confirmQuestion();\" class=\"btn btn-large btn-inverse btn-block \">我已經確認且完成了所有群組的調整</button></p><br>");
+					
+					algorithm_time = (end - start) / 1000;
+
+					load_friend_data_success = true;
+
+			}
+			
+			var TP = new Array();
+			var FP = new Array();
+			var TN = new Array();
+			var FN = new Array();
+			var FLC = new Array();
+			var FLA = new Array();
+			var AG = new Array();
+			var AL = new Array();
+			var ALF = new Array();
+			var current_list_id = 0;
+			
+			function friendlist_auto_create(number) {
+				current_list_number = number;
+				bootbox.prompt("請輸入朋友名單的名稱:", function(result) {                
+					if (!(result === null)) {                                             
+						createFriendlists(result);                          
+					}	
+				});
+			}
+			var id = "";
+			var friend  = "";
+			var bgll_Q  = "";
+			var friend_exclusive_mechanism_bgll_Q = "";
+			var user_adjusted_friend_exclusive_mechanism_bgll_Q = "";
+			var condition = 0;
+			var condition_effect = "";
+			var group = "";
+			var group_TP = "";
+			var group_TN = "";
+			var group_FP = "";
+			var group_FN = "";
+			var group_P = "";
+			var group_R = "";
+			var group_BQ = "";
+			var group_AQ = "";
+			var group_FLC = "";
+			
+			function confirmQuestion() {
+				var adjusted_friendlist_number = 0;
+				for (var n=0; n<GN.length; n++) {
+					if ( FLA[n] == 1 ) {
+						adjusted_friendlist_number ++;
+					}
+				}
+				if (adjusted_friendlist_number==GN.length) {
+					if (NG.length>0) {
+						bootbox.alert("<div class=\"page-header\"><h1>訊息</h1></div>不好意思，您還未將 "+NG.length+" 位朋友加入適當的群組中，麻煩了。");	
+					} else {
+					id = user_id;
+					friend = FriendMatrix.length;
+					friend_relation = 0;
+					for (var x=0; x<FriendMatrix.length; x++) {
+						for (var y=0; y<FriendMatrix.length; y++) {
+							if (FriendMatrix[x][y]==1) {
+								friend_relation++;
+							}		
+						}
+					}
+					group = "";
+					group_TP = "";
+					group_TN = "";
+					group_FP = "";
+					group_FN = "";
+					group_P = "";
+					group_R = "";
+					group_BQ = "";
+					group_AQ = "";
+					group_FLC = "";
+					friend_relation = friend_relation / 2;
+					bgll_Q = BGLL_Q;
+					friend_exclusive_mechanism_bgll_Q = FEMB_Q;
+					user_adjusted_friend_exclusive_mechanism_bgll_Q = Q(FriendMatrix,G);
+					for (var n=0; n<FEMBGN.length; n++) {
+						group = group + "," + FEMBGN[n].length;
+						TP[n] = 0;
+						FP[n] = 0;
+						TN[n] = 0;
+						FN[n] = 0;
+						for (var i=0; i<FriendID.length; i++) {
+							if (FEMBGN[n].indexOf(i)!=-1 && GN[n].indexOf(i)!=-1) {
+								TP[n] = TP[n] + 1;
+	 						} else if (FEMBGN[n].indexOf(i)!=-1 && GN[n].indexOf(i)==-1) {
+	 							FP[n] = FP[n] + 1;
+	 						} else if (FEMBGN[n].indexOf(i)==-1 && GN[n].indexOf(i)!=-1) {
+	 							FN[n] = FN[n] + 1;
+	 						} else if (FEMBGN[n].indexOf(i)==-1 && GN[n].indexOf(i)==-1) {
+	 							TN[n] = TN[n] + 1;
+	 						}
+						}
+						if (FLC[n]==1) {
+							group_FLC = group_FLC + ",true";	
+						} else {
+							group_FLC = group_FLC + ",false";
+						}
+						group_TP = group_TP + "," + TP[n];
+						group_FP = group_FP + "," + FP[n];
+						group_FN = group_FN + "," + FN[n];
+						group_TN = group_TN + "," + TN[n];
+						group_P = group_P + "," + TP[n]/(TP[n]+FP[n]);
+						group_R = group_R + "," + TP[n]/(TP[n]+FN[n]);
+						group_BQ = group_BQ + "," + GQ(FriendMatrix,FEMBGN[n]);
+						group_AQ = group_AQ + "," + GQ(FriendMatrix,GN[n]);	
+					} 
+					sendQuestion(id,friend,friend_relation,bgll_Q,condition_number,condition_effect,friend_exclusive_mechanism_bgll_Q,group,group_TP,group_TN,group_FP,group_FN,group_P,group_R,group_BQ,group_AQ,group_FLC,group_bgll_number,user_adjusted_friend_exclusive_mechanism_bgll_Q);
+					}
+				} else {
+					if (NG.length>0) {
+						bootbox.alert("<div class=\"page-header\"><h1>訊息</h1></div>不好意思，您還有 " + (GN.length-adjusted_friendlist_number)+ " 個群組未進行確認與調整以及還未將 "+NG.length+" 位朋友加入適當的群組中，麻煩了。");	
+					} else {
+						bootbox.alert("<div class=\"page-header\"><h1>訊息</h1></div>不好意思，您還有 " + (GN.length-adjusted_friendlist_number)+ " 個群組未進行確認與調整，麻煩了。");	
+					}
+				}
+			}
+			function sendQuestion(id,friend,friend_relation,bgll_Q,condition_number,condition_effect,friend_exclusive_mechanism_bgll_Q,group,group_TP,group_TN,group_FP,group_FN,group_P,group_R,group_BQ,group_AQ,group_FLC,group_bgll_number,user_adjusted_friend_exclusive_mechanism_bgll_Q) {	
+				$.ajax({
+				  url: "https://docs.google.com/forms/d/1cViCgg_7xwXPUu-CheEKj31zzTvS2N_DB_0WWENqIHk/formResponse",
+				  data: { "entry.812991198":id, "entry.1792493695": friend, "entry.107661797": friend_relation,"entry.366808602": bgll_Q,"entry.1021381560":condition_number,"entry.1873498615":condition_effect,"entry.270807178":friend_exclusive_mechanism_bgll_Q,"entry.30917185":group,"entry.1036129091":group_TP,"entry.1900683135":group_TN,"entry.56200822":group_FP,"entry.962883038":group_FN,"entry.1936701907":group_P,"entry.1084972982":group_R,"entry.132821261":group_BQ,"entry.416163263":group_AQ,"entry.1200975783":group_FLC,"entry.868584890":group_bgll_number,"entry.953617432":user_adjusted_friend_exclusive_mechanism_bgll_Q,"submit":"Submit"},
+				  type: "POST",
+				  success: function(data, textStatus, XMLHttpRequest) {
+				  	
+				    console.log("success");
+				    console.log(data);
+				  },
+				  error: function(XMLHttpRequest, textStatus, errorThrown) {
+				    console.log(textStatus);
+				  },
+				  timeout: 120000 
+				});
+				var message = '<div class="page-header">謝謝您花時間針對 '+ FriendID.length +' 位朋友所產生出的 '+ FEMBGN.length+' 個群組進行最適當結果的確認與調整。</div><div id="chartContainer" style="height: 300px; width: 100%;"></div>';
+				bootbox.alert(message, '關閉');
+				var datapoint_recall = [];
+				var datapoint_precision = [];
+				for (var n=0; n<FEMBGN.length; n++) {
+					datapoint_recall.push({x:(n+1),y:TP[n]/(TP[n]+FP[n]),label:"群組 "+(n+1)});
+				}
+				for (var n=0; n<FEMBGN.length; n++) {
+					datapoint_precision.push({x:(n+1),y:TP[n]/(TP[n]+FN[n]),label:"群組 "+(n+1)});		
+				}
+				var chart = new CanvasJS.Chart("chartContainer",
+						{
+							theme: "theme3",
+							title:{
+								text: "調整後群組之相關資訊",
+								fontSize: 24,
+							},
+							axisX:{
+								labelAngle: 90,
+								gridColor: "Silver",
+								tickColor: "silver",
+								maximum: FEMBGN.length,
+								minimum: 1,
+								interval: 1,
+								labelFontFamily: "微軟正黑體"
+							}, toolTip:{
+				                shared:true
+				            }, theme: "theme2",
+							axisY: {
+								gridColor: "Silver",
+								tickColor: "silver",
+								valueFormatString: "#0%",
+								maximum: 1,
+								minimum: 0,
+								interval: 0.1,
+								labelFontFamily: "微軟正黑體",
+							},
+							legend:{
+								verticalAlign: "bottom",
+								horizontalAlign: "center",
+							},
+							data: [
+							{        
+								type: "line",
+								showInLegend: true,
+								lineThickness: 2,
+								name: "查準率 (precision)",
+								markerType: "square",
+								color: "LightCoral",
+								dataPoints: datapoint_precision
+							},
+							{        
+								type: "line",
+								showInLegend: true,
+								name: "查全率 (recall)",
+								color: "LightSeaGreen",
+								lineThickness: 2,
+								dataPoints: datapoint_recall
+							},
+
+							
+							]
+						});
+
+				chart.render();
+			}
+
+			$(function() {
+				key_fanpage_number = -1;
+				FB.login(handleSessionResponseLogin, {
+					scope : 'user_photos,friends_photos,read_friendlists,manage_friendlists,read_stream,user_likes,friends_likes '
+				});
+				
+				$('#loading-data').hide();
+				$('#config-user-condition').hide();
+				$('#how-to-help').hide();
+
+			});
+			// 儲存重要資訊
+			function saveDataToStorage() {
+				window.localStorage["A"] = JSON.stringify(FriendMatrix);
+				window.localStorage["FID"] = JSON.stringify(FriendID);
+				window.localStorage["FNAME"] = JSON.stringify(FriendName);
+			}
+
+			// 建立朋友名單
+			function createFriendlists(friend_name) {
+										                                        
+				FLC[current_list_number-1] = 1;
+				FB.api('/me/friendlists?name='+friend_name, 'Post', function(response) {
+					var friendlist_id = response.id;
+					FB.api('/'+friendlist_id, function(response) {
+					var friendlist_name = response.name;
+					var friendlist_id = response.id;
+					for (var n=0; n<GN[current_list_number-1].length; n++) {
+						FB.api('/'+friendlist_id+'/members/' + FriendID[GN[current_list_number-1][n]],'Post', function(response) {
+										
+						});
+					}
+				});});
+			}
+
+			var FG = new Array();
+			var FP = new Array();
+
+			var UFPID = new Array();
+			var FPID = new Array();
+			var FPRANK = new Array();
+			var data = new Array();
+			var fp_number = new Array();
+			var is_change = false;
+
+
+			var temp;
+			var OriginalFriendMatrix;
+			
+			var edge = 0;
+			var vector = 0;
+			var user_id = 0;
+			var current_list_id = 0;
+			var select_list_id = -1;
+			var user_confirm_number = 0;
+			var threshold = new Array();
+			var suggest_list_name = new Array();
+			var suggest_list_id = new Array();
+			var algorithm_time = 0;
+
+			var chart_generated = new Array();
+			var user_confirm_list = new Array();
+			var suggest_list_number = new Array();
+			var number = new Array();
+			var L = new Array();
+			var LN = new Array();
+			var G = new Array();
+			var P = new Array();
+			var K = new Array();
+			var D,W;
+			var load_number = 0;
+
+		</script>
+
+	</body>
+</html>
+
